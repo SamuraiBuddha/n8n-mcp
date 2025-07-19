@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run test:credentials:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth:*)"
+    ],
+    "deny": []
+  }
+}
