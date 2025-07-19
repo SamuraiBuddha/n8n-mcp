@@ -280,6 +280,15 @@ export class N8nApiClient {
     }
   }
 
+  async testCredential(id: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await this.client.post(`/credentials/${id}/test`);
+      return response.data;
+    } catch (error) {
+      throw handleN8nApiError(error);
+    }
+  }
+
   // Tag Management
   async listTags(params: TagListParams = {}): Promise<TagListResponse> {
     try {

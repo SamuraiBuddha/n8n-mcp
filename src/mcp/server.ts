@@ -9,6 +9,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { n8nDocumentationToolsFinal } from './tools';
 import { n8nManagementTools } from './tools-n8n-manager';
+import { credentialManagementTools } from './tools-credentials';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
@@ -16,6 +17,7 @@ import { PropertyFilter } from '../services/property-filter';
 import { ExampleGenerator } from '../services/example-generator';
 import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
+import { NodeDocumentationService } from '../services/node-documentation-service';
 import { EnhancedConfigValidator, ValidationMode, ValidationProfile } from '../services/enhanced-config-validator';
 import { PropertyDependencies } from '../services/property-dependencies';
 import { SimpleCache } from '../utils/simple-cache';
@@ -25,6 +27,7 @@ import { isN8nApiConfigured } from '../config/n8n-api';
 import * as n8nHandlers from './handlers-n8n-manager';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { getToolDocumentation, getToolsOverview } from './tools-documentation';
+import * as credentialHandlers from './handlers-credentials';
 import { PROJECT_VERSION } from '../utils/version';
 
 interface NodeRow {
@@ -50,6 +53,7 @@ export class N8NDocumentationMCPServer {
   private db: DatabaseAdapter | null = null;
   private repository: NodeRepository | null = null;
   private templateService: TemplateService | null = null;
+  private nodeDocService: NodeDocumentationService | null = null;
   private initialized: Promise<void>;
   private cache = new SimpleCache();
 
@@ -82,7 +86,7 @@ export class N8NDocumentationMCPServer {
     // Log n8n API configuration status at startup
     const apiConfigured = isN8nApiConfigured();
     const totalTools = apiConfigured ? 
-      n8nDocumentationToolsFinal.length + n8nManagementTools.length : 
+      n8nDocumentationToolsFinal.length + n8nManagementTools.length + credentialManagementTools.length : 
       n8nDocumentationToolsFinal.length;
     
     logger.info(`MCP server initialized with ${totalTools} tools (n8n API: ${apiConfigured ? 'configured' : 'not configured'})`);
@@ -107,6 +111,7 @@ export class N8NDocumentationMCPServer {
       this.db = await createDatabaseAdapter(dbPath);
       this.repository = new NodeRepository(this.db);
       this.templateService = new TemplateService(this.db);
+      this.nodeDocService = new NodeDocumentationService(dbPath);
       logger.info(`Initialized database from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
@@ -151,7 +156,8 @@ export class N8NDocumentationMCPServer {
       
       if (isConfigured) {
         tools.push(...n8nManagementTools);
-        logger.debug(`Tool listing: ${tools.length} tools available (${n8nDocumentationToolsFinal.length} documentation + ${n8nManagementTools.length} management)`);
+        tools.push(...credentialManagementTools);
+        logger.debug(`Tool listing: ${tools.length} tools available (${n8nDocumentationToolsFinal.length} documentation + ${n8nManagementTools.length} management + ${credentialManagementTools.length} credential)`);
       } else {
         logger.debug(`Tool listing: ${tools.length} tools available (documentation only)`);
       }
@@ -274,6 +280,62 @@ export class N8NDocumentationMCPServer {
         return n8nHandlers.handleListAvailableTools();
       case 'n8n_diagnostic':
         return n8nHandlers.handleDiagnostic({ params: { arguments: args } });
+      
+      // Credential Management Tools (if API is configured)
+      case 'n8n_list_credentials': {
+        const apiClient = n8nHandlers.getN8nApiClient();
+        if (!apiClient) {
+          throw new Error('n8n API not configured. Set N8N_API_URL and N8N_API_KEY environment variables.');
+        }
+        return credentialHandlers.handleListCredentials(args, apiClient);
+      }
+      case 'n8n_get_credential': {
+        const apiClient = n8nHandlers.getN8nApiClient();
+        if (!apiClient) {
+          throw new Error('n8n API not configured. Set N8N_API_URL and N8N_API_KEY environment variables.');
+        }
+        return credentialHandlers.handleGetCredential(args, apiClient);
+      }
+      case 'n8n_create_credential': {
+        const apiClient = n8nHandlers.getN8nApiClient();
+        if (!apiClient) {
+          throw new Error('n8n API not configured. Set N8N_API_URL and N8N_API_KEY environment variables.');
+        }
+        return credentialHandlers.handleCreateCredential(args, apiClient);
+      }
+      case 'n8n_update_credential': {
+        const apiClient = n8nHandlers.getN8nApiClient();
+        if (!apiClient) {
+          throw new Error('n8n API not configured. Set N8N_API_URL and N8N_API_KEY environment variables.');
+        }
+        return credentialHandlers.handleUpdateCredential(args, apiClient);
+      }
+      case 'n8n_delete_credential': {
+        const apiClient = n8nHandlers.getN8nApiClient();
+        if (!apiClient) {
+          throw new Error('n8n API not configured. Set N8N_API_URL and N8N_API_KEY environment variables.');
+        }
+        return credentialHandlers.handleDeleteCredential(args, apiClient);
+      }
+      case 'n8n_test_credential': {
+        const apiClient = n8nHandlers.getN8nApiClient();
+        if (!apiClient) {
+          throw new Error('n8n API not configured. Set N8N_API_URL and N8N_API_KEY environment variables.');
+        }
+        return credentialHandlers.handleTestCredential(args, apiClient);
+      }
+      case 'get_credential_type_info':
+        await this.ensureInitialized();
+        if (!this.nodeDocService) throw new Error('Node documentation service not initialized');
+        return credentialHandlers.handleGetCredentialTypeInfo(args, this.nodeDocService);
+      case 'list_credential_types':
+        await this.ensureInitialized();
+        if (!this.nodeDocService) throw new Error('Node documentation service not initialized');
+        return credentialHandlers.handleListCredentialTypes(args, this.nodeDocService);
+      case 'get_node_credential_requirements':
+        await this.ensureInitialized();
+        if (!this.nodeDocService) throw new Error('Node documentation service not initialized');
+        return credentialHandlers.handleGetNodeCredentialRequirements(args, this.nodeDocService);
         
       default:
         throw new Error(`Unknown tool: ${name}`);

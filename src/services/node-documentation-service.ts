@@ -707,4 +707,152 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
     await this.ensureInitialized();
     this.db!.close();
   }
+
+  // Credential type methods
+  async getCredentialTypeInfo(type: string): Promise<any> {
+    try {
+      // For now, we'll return basic credential type information
+      // In a full implementation, this would query credential type definitions from the database
+      const basicCredentialTypes: Record<string, any> = {
+        httpBasicAuth: {
+          type: 'httpBasicAuth',
+          displayName: 'Basic Auth',
+          documentationUrl: 'https://docs.n8n.io/credentials/httpBasicAuth/',
+          properties: [
+            {
+              name: 'user',
+              displayName: 'User',
+              type: 'string',
+              required: true
+            },
+            {
+              name: 'password',
+              displayName: 'Password',
+              type: 'string',
+              typeOptions: { password: true },
+              required: true
+            }
+          ]
+        },
+        httpHeaderAuth: {
+          type: 'httpHeaderAuth',
+          displayName: 'Header Auth',
+          documentationUrl: 'https://docs.n8n.io/credentials/httpHeaderAuth/',
+          properties: [
+            {
+              name: 'name',
+              displayName: 'Header Name',
+              type: 'string',
+              default: 'Authorization',
+              required: true
+            },
+            {
+              name: 'value',
+              displayName: 'Header Value',
+              type: 'string',
+              typeOptions: { password: true },
+              required: true
+            }
+          ]
+        },
+        openAiApi: {
+          type: 'openAiApi',
+          displayName: 'OpenAI API',
+          documentationUrl: 'https://docs.n8n.io/credentials/openAi/',
+          properties: [
+            {
+              name: 'apiKey',
+              displayName: 'API Key',
+              type: 'string',
+              typeOptions: { password: true },
+              required: true,
+              placeholder: 'sk-...'
+            }
+          ]
+        }
+      };
+
+      return basicCredentialTypes[type] || null;
+    } catch (error) {
+      logger.error('Error getting credential type info:', error);
+      throw error;
+    }
+  }
+
+  async listCredentialTypes(filter?: string): Promise<any[]> {
+    try {
+      await this.ensureInitialized();
+      
+      // Query the database for nodes that have credential requirements
+      const query = `
+        SELECT DISTINCT 
+          json_each.value as credential_type,
+          COUNT(DISTINCT node_type) as node_count
+        FROM nodes, 
+        json_each(credentials_required)
+        WHERE credentials_required IS NOT NULL 
+        ${filter ? "AND json_each.value LIKE '%' || ? || '%'" : ''}
+        GROUP BY json_each.value
+        ORDER BY json_each.value
+      `;
+
+      const params = filter ? [filter] : [];
+      const stmt = this.db!.prepare(query);
+      const results = filter ? stmt.all(filter) : stmt.all();
+
+      // Map common credential types with display names
+      const credentialTypeMap: Record<string, string> = {
+        httpBasicAuth: 'Basic Auth',
+        httpHeaderAuth: 'Header Auth',
+        httpDigestAuth: 'Digest Auth',
+        httpQueryAuth: 'Query Auth',
+        oauth1Api: 'OAuth1',
+        oauth2Api: 'OAuth2',
+        openAiApi: 'OpenAI API',
+        slackApi: 'Slack API',
+        slackOAuth2Api: 'Slack OAuth2',
+        googleSheetsOAuth2Api: 'Google Sheets OAuth2',
+        githubApi: 'GitHub API',
+        githubOAuth2Api: 'GitHub OAuth2'
+      };
+
+      return results.map((row: any) => ({
+        type: row.credential_type,
+        displayName: credentialTypeMap[row.credential_type] || row.credential_type,
+        description: `Used by ${row.node_count} node(s)`,
+        nodeCount: row.node_count
+      }));
+    } catch (error) {
+      logger.error('Error listing credential types:', error);
+      throw error;
+    }
+  }
+
+  async getNodeByType(nodeType: string): Promise<any> {
+    try {
+      await this.ensureInitialized();
+      const stmt = this.db!.prepare('SELECT * FROM nodes WHERE node_type = ? LIMIT 1');
+      const row = stmt.get(nodeType);
+      
+      if (!row) {
+        return null;
+      }
+      
+      const nodeInfo = this.rowToNodeInfo(row);
+      
+      // Parse credentials from the credentials_required field
+      if (row.credentials_required) {
+        try {
+          (nodeInfo as any).credentials = JSON.parse(row.credentials_required);
+        } catch (e) {
+          (nodeInfo as any).credentials = [];
+        }
+      }
+      
+      return nodeInfo;
+    } catch (error) {
+      logger.error('Error getting node by type:', error);
+      throw error;
+    }
+  }
 }

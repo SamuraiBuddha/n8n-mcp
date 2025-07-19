@@ -6,7 +6,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.7.6)
+**Key Details:**
+- **npm Package**: `n8n-mcp` (current version: 2.7.10)
+- **GitHub**: https://github.com/czlonkowski/n8n-mcp
+- **Docker Image**: `ghcr.io/czlonkowski/n8n-mcp:latest`
+- **License**: MIT License by Romuald Czlonkowski @ www.aiadvisors.pl/en
+
+## 🚀 Quick Start Commands
+
+```bash
+# Essential Development Workflow
+npm install          # Install dependencies
+npm run build        # Compile TypeScript (ALWAYS required before running)
+npm run rebuild      # Rebuild node database from n8n packages
+npm run dev          # Build + rebuild + validate
+
+# Running the Server
+npm start            # Run in stdio mode (for Claude Desktop)
+npm run start:http   # Run in HTTP mode for remote access
+npx n8n-mcp         # Run from npm package
+
+# Testing
+npm test             # Run Jest tests
+npm run typecheck    # TypeScript type checking
+npm run validate     # Validate database integrity
+
+# Quick Deployment
+docker compose up -d # Start with Docker
+```
+
+## ✅ Latest Updates (v2.8.0)
+
+### Update (v2.8.0) - Credential Management Support:
+- ✅ **NEW: 9 credential management tools** - Full CRUD operations for n8n credentials
+- ✅ **NEW: n8n_list_credentials** - List all credentials with metadata
+- ✅ **NEW: n8n_create_credential** - Create credentials programmatically
+- ✅ **NEW: n8n_update_credential** - Update existing credentials
+- ✅ **NEW: n8n_test_credential** - Test credential connectivity
+- ✅ **NEW: get_credential_type_info** - Get credential schema information
+- ✅ **NEW: list_credential_types** - List all available credential types
+- ✅ **NEW: get_node_credential_requirements** - Get credential requirements for any node
+- ✅ **Security-first design** - Credential data is never exposed in responses
+- ✅ **Complete lifecycle** - Create, configure, test, and manage credentials via API
+- ✅ **Schema discovery** - Learn what fields each credential type requires
+- ✅ **Node integration** - Understand which credentials a node needs
+
+## ✅ Previous Updates
 
 ### Update (v2.7.6) - Trust Proxy Support for Correct IP Logging:
 - ✅ **NEW: TRUST_PROXY support** - Log real client IPs when behind reverse proxy
@@ -216,6 +261,7 @@ npm run test:n8n-validate-workflow  # Test n8n_validate_workflow tool
 npm run test:typeversion-validation  # Test typeVersion validation
 npm run test:workflow-diff  # Test workflow diff engine
 npm run test:tools-documentation  # Test MCP tools documentation system
+npm run test:credentials    # Test credential management functionality
 
 # Workflow Validation Commands:
 npm run test:workflow-validation   # Test workflow validation features
@@ -368,6 +414,17 @@ These tools are only available when N8N_API_URL and N8N_API_KEY are configured:
 - `n8n_health_check` - Check n8n API connectivity and features
 - `n8n_list_available_tools` - List all available management tools
 
+#### Credential Management Tools (NEW v2.8.0)
+- `n8n_list_credentials` - List all credentials in n8n
+- `n8n_get_credential` - Get credential details (metadata only)
+- `n8n_create_credential` - Create new credentials
+- `n8n_update_credential` - Update existing credentials
+- `n8n_delete_credential` - Delete credentials
+- `n8n_test_credential` - Test credential connectivity
+- `get_credential_type_info` - Get credential type schema
+- `list_credential_types` - List available credential types
+- `get_node_credential_requirements` - Get node credential requirements
+
 ### Database Structure
 Uses SQLite with enhanced schema:
 - **nodes** table: Core node information with FTS5 indexing
@@ -431,6 +488,13 @@ This means the project works with ANY Node.js version without manual interventio
 npm run build        # Always build first
 npm test             # Run all tests
 npm run typecheck    # Verify TypeScript types
+
+# Test specific features when working on them:
+npm run test:workflow-diff       # When modifying diff engine
+npm run test:workflow-validation # When changing validation logic
+npm run test:essentials         # When updating essential properties
+npm run test:n8n-manager        # When modifying n8n API integration
+npm run test:single-session     # When changing HTTP server
 ```
 
 ### Docker Development
@@ -485,7 +549,8 @@ Required environment variables (see `.env.example`):
 # Server Configuration
 NODE_ENV=development
 PORT=3000
-AUTH_TOKEN=your-secure-token
+AUTH_TOKEN=your-secure-token  # Generate with: openssl rand -base64 32
+AUTH_TOKEN_FILE=/path/to/token  # Alternative: read token from file (Docker secrets)
 
 # Trust proxy for correct IP logging (optional)
 # Set to 1 when behind a reverse proxy (Nginx, etc.)
@@ -497,7 +562,27 @@ MCP_SERVER_VERSION=1.0.0
 
 # Logging
 LOG_LEVEL=info
+
+# Database Configuration (optional)
+NODE_DB_PATH=./data/nodes.db
+REBUILD_ON_START=false
+
+# n8n API Configuration (optional - enables management tools)
+N8N_API_URL=http://localhost:5678
+N8N_API_KEY=your-api-key
+N8N_API_TIMEOUT=30000
+N8N_API_MAX_RETRIES=3
 ```
+
+## Security Best Practices
+
+When working with this codebase:
+1. **Never commit credentials** - Use environment variables exclusively
+2. **Generate strong tokens**: `openssl rand -base64 32`
+3. **Run security audits**: `npm audit` regularly
+4. **Use least-privilege** API keys when configuring n8n integration
+5. **Docker runs non-root** - Containers use uid:gid 1000:1000 for security
+6. **Rotate credentials** immediately if exposed
 
 ## License
 
@@ -739,6 +824,21 @@ get_node_essentials("nodes-base.httpRequest")  # 5KB response with examples
 - Clear audit trail of what changed
 - Safer updates with validation
 - Works with any workflow size
+
+### Credential Management (NEW in v2.8.0)
+**Problem**: AI agents couldn't create or manage credentials needed for workflows to function.
+
+**Solution**: Full credential management via MCP tools:
+1. **9 new MCP tools** for credential operations
+2. **Security-first design** - Never expose credential data
+3. **Schema discovery** - Learn what each credential type needs
+4. **Integration with nodes** - Understand credential requirements
+
+**Results**:
+- Complete workflow automation including credentials
+- Programmatic credential creation and updates
+- Test credentials before using in workflows
+- Full lifecycle: create → configure → test → use → delete
 
 ## Known Issues
 
